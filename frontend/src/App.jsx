@@ -50,7 +50,7 @@ const Navbar = ({ user, cartCount, logout, logoUrl, searchTerm, setSearchTerm })
 
         {/* Logo */}
         <Link to="/" className="text-3xl font-black tracking-tighter text-gray-800 flex items-center gap-2 group">
-          <img src={`${SERVER_URL}/uploads/LoFerTrasn.png`} alt="FerreCenter" className="h-12 md:h-20 object-contain" translate="no" />
+          <img src="/LoFerTrasn.png" alt="FerreCenter" className="h-12 md:h-20 object-contain" translate="no" />
         </Link>
 
         {/* Menú Usuario */}
@@ -1832,7 +1832,7 @@ function App() {
           <div className="container mx-auto px-4 md:px-6 grid grid-cols-1 md:grid-cols-3 gap-8 text-center md:text-left">
             <div>
               <Link to="/" className="inline-block mb-4">
-                <img src={`${SERVER_URL}/uploads/LoFerTrasn.png`} alt="FerreCenter" className="h-20 object-contain" translate="no" />
+                <img src="/LoFerTrasn.png" alt="FerreCenter" className="h-20 object-contain" translate="no" />
               </Link>
               <p className="text-gray-400 text-sm">Tu aliado confiable en construcción y herramientas. Calidad garantizada en cada producto.</p>
             </div>
