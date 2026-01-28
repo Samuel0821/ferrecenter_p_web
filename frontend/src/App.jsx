@@ -32,7 +32,7 @@ const loadWompiScript = () => {
 // --- COMPONENTES ---
 
 // Barra de Navegación
-const Navbar = ({ user, cartCount, logout, logoUrl, searchTerm, setSearchTerm }) => {
+const Navbar = ({ user, cartCount, logout, searchTerm, setSearchTerm }) => {
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
 
   return (
@@ -759,7 +759,7 @@ const UserProfile = ({ user, setUser }) => {
   );
 };
 
-const AdminPanel = ({ user, setAppLogo }) => {
+const AdminPanel = ({ user }) => {
   const [formData, setFormData] = useState({ name: '', description: '', price: '', category: '', subcategory: '', stock: '', imageUrl: '' });
   const [companyData, setCompanyData] = useState({ name: '', nit: '', address: '', phone: '', email: '', logoUrl: '' });
   const [userFormData, setUserFormData] = useState({ name: '', email: '', isAdmin: false, address: '', phone: '', identification: '', password: '' });
@@ -908,8 +908,6 @@ const AdminPanel = ({ user, setAppLogo }) => {
       // Guardar la URL del logo en la configuración global
       // También actualizamos el estado local de companyData para que se refleje en el formulario
       setCompanyData(prev => ({ ...prev, logoUrl: data }));
-      setAppLogo(data); // Actualizar estado global de la app
-      
       setLogoUploading(false);
       alert('✅ Logo actualizado correctamente');
     } catch (error) {
@@ -1352,7 +1350,7 @@ const AdminPanel = ({ user, setAppLogo }) => {
   );
 };
 
-const Login = ({ setUser, logoUrl }) => {
+const Login = ({ setUser }) => {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
@@ -1412,7 +1410,7 @@ const Login = ({ setUser, logoUrl }) => {
 };
 
 // Componente para Olvidé Contraseña
-const ForgotPassword = ({ logoUrl }) => {
+const ForgotPassword = () => {
   const [email, setEmail] = useState('');
   const [message, setMessage] = useState('');
   const [error, setError] = useState('');
@@ -1463,7 +1461,7 @@ const ForgotPassword = ({ logoUrl }) => {
 };
 
 // Componente para Restablecer Contraseña
-const ResetPassword = ({ logoUrl }) => {
+const ResetPassword = () => {
     const [password, setPassword] = useState('');
     const [confirmPassword, setConfirmPassword] = useState('');
     const [message, setMessage] = useState('');
@@ -1520,7 +1518,7 @@ const ResetPassword = ({ logoUrl }) => {
 };
 
 // Componente para Crear Cuenta
-const Register = ({ setUser, logoUrl }) => {
+const Register = ({ setUser }) => {
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -1662,13 +1660,7 @@ const Help = () => {
 function App() {
   const [user, setUser] = useState(JSON.parse(localStorage.getItem('userInfo')) || null);
   const [cart, setCart] = useState([]);
-  const [logoUrl, setLogoUrl] = useState(null);
   const [searchTerm, setSearchTerm] = useState('');
-
-  useEffect(() => {
-    // Cargar el logo al iniciar la app
-    API.get('/config/logo').then(res => setLogoUrl(res.data)).catch(() => {});
-  }, []);
 
   const addToCart = (product) => {
     setCart([...cart, product]);
@@ -1739,7 +1731,7 @@ function App() {
   return (
     <Router>
       <div className="min-h-screen bg-ferreLight font-sans text-gray-800 flex flex-col">
-        <Navbar user={user} cartCount={cart.length} logout={logout} logoUrl={logoUrl} searchTerm={searchTerm} setSearchTerm={setSearchTerm} />
+        <Navbar user={user} cartCount={cart.length} logout={logout} searchTerm={searchTerm} setSearchTerm={setSearchTerm} />
         <div className="flex-grow">
           <Routes>
             <Route path="/" element={<Home addToCart={addToCart} searchTerm={searchTerm} />} />
@@ -1750,12 +1742,12 @@ function App() {
             <Route path="/contacto" element={<Contacto />} />
             <Route path="/transaction-result" element={<TransactionResult />} />
             <Route path="/profile" element={user ? <UserProfile user={user} setUser={setUser} /> : <Navigate to="/login" />} />
-            <Route path="/login" element={user ? <Navigate to="/" /> : <Login setUser={setUser} logoUrl={logoUrl} />} />
-            <Route path="/register" element={user ? <Navigate to="/" /> : <Register setUser={setUser} logoUrl={logoUrl} />} />
+            <Route path="/login" element={user ? <Navigate to="/" /> : <Login setUser={setUser} />} />
+            <Route path="/register" element={user ? <Navigate to="/" /> : <Register setUser={setUser} />} />
             <Route path="/help" element={<Help />} />
-            <Route path="/forgot-password" element={<ForgotPassword logoUrl={logoUrl} />} />
-            <Route path="/reset-password/:token" element={<ResetPassword logoUrl={logoUrl} />} />
-            <Route path="/admin" element={user && user.isAdmin ? <AdminPanel user={user} setAppLogo={setLogoUrl} /> : <Navigate to="/" />} />
+            <Route path="/forgot-password" element={<ForgotPassword />} />
+            <Route path="/reset-password/:token" element={<ResetPassword />} />
+            <Route path="/admin" element={user && user.isAdmin ? <AdminPanel user={user} /> : <Navigate to="/" />} />
             <Route path="/cart" element={
               <div className="container mx-auto p-4 md:p-6 max-w-5xl">
                 <h2 className="text-3xl font-bold text-gray-800 mb-8 flex items-center gap-3">
