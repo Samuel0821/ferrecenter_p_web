@@ -4,6 +4,7 @@ const express = require('express');
 const mongoose = require('mongoose');
 const cors = require('cors');
 const dotenv = require('dotenv');
+const fs = require('fs');
 const userRoutes = require('./routes/userRoutes');
 const productRoutes = require('./routes/productRoutes');
 const uploadRoutes = require('./routes/uploadRoutes');
@@ -45,7 +46,12 @@ app.use('/api/categories', categoryRoutes);
 app.use('/api/company', companyRoutes);
 
 // --- Hacer pública la carpeta uploads ---
-app.use('/uploads', express.static(path.join(__dirname, '/uploads')));
+// En Render, aseguramos que la carpeta exista para evitar errores al subir imágenes
+const uploadsDir = path.join(__dirname, 'uploads');
+if (!fs.existsSync(uploadsDir)) {
+  fs.mkdirSync(uploadsDir);
+}
+app.use('/uploads', express.static(uploadsDir));
 
 // --- Ruta de Prueba ---
 app.get('/', (req, res) => {
