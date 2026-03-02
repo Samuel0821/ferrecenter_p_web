@@ -2,32 +2,12 @@ import React, { useState, useEffect } from 'react';
 import { BrowserRouter as Router, Routes, Route, Link, Navigate, useParams, useNavigate, useLocation } from 'react-router-dom';
 import axios from 'axios';
 import { ShoppingCart, User, LogOut, PackagePlus, Search, Trash2, CreditCard, ArrowRight, Star, Image as ImageIcon, Eye, EyeOff, Menu, MapPin, Mail, Instagram, Camera, Filter, Edit, X, FileText, ShoppingBag, Package, Settings, Users, Clock, CheckCircle } from 'lucide-react';
+import CartPage from './components/CartPage';
 
 // Configuración de conexión con el Backend
 // Detecta automáticamente si hay una variable de entorno (Prod) o usa localhost (Dev)
 const SERVER_URL = import.meta.env.VITE_BACKEND_URL || 'http://localhost:5000';
 const API = axios.create({ baseURL: `${SERVER_URL}/api` });
-
-// Configuración de Wompi (Dinámica según entorno)
-// Si VITE_WOMPI_ENV es 'production', usa la URL real, si no, usa Sandbox.
-const WOMPI_ENV = import.meta.env.VITE_WOMPI_ENV || 'sandbox';
-const WOMPI_API_URL = WOMPI_ENV === 'production' ? 'https://production.wompi.co/v1/transactions' : 'https://sandbox.wompi.co/v1/transactions';
-
-// Helper para cargar el script de Wompi
-const loadWompiScript = () => {
-  return new Promise((resolve) => {
-    if (document.getElementById('wompi-widget')) {
-      resolve();
-      return;
-    }
-    const script = document.createElement('script');
-    script.id = 'wompi-widget';
-    script.src = 'https://checkout.wompi.co/widget.js';
-    script.async = true;
-    script.onload = resolve;
-    document.body.appendChild(script);
-  });
-};
 
 // --- COMPONENTES ---
 
@@ -238,6 +218,15 @@ const ProductCard = ({ product, addToCart }) => (
         className="h-full w-full object-contain mix-blend-multiply group-hover:scale-110 transition-transform duration-500" 
         onError={(e) => e.target.src = 'https://via.placeholder.com/300?text=Sin+Imagen'} 
       />
+      <div className="absolute top-4 left-4">
+        <span className={`text-xs font-bold px-3 py-1 rounded-full shadow-sm border ${
+            product.stock > 10 ? 'bg-green-100 text-green-700 border-green-200' :
+            product.stock > 0 ? 'bg-yellow-100 text-yellow-700 border-yellow-200' :
+            'bg-red-100 text-red-700 border-red-200'
+        }`}>
+          {product.stock > 0 ? `${product.stock} disponibles` : 'Agotado'}
+        </span>
+      </div>
       <div className="absolute top-4 right-4">
         <span className="bg-white/90 backdrop-blur text-gray-600 text-xs font-bold px-3 py-1 rounded-full shadow-sm border border-gray-100">
           {product.category}
@@ -257,7 +246,7 @@ const ProductCard = ({ product, addToCart }) => (
           <span className="text-xl font-extrabold text-ferreRed">${product.price.toLocaleString('es-CO')}</span>
         </div>
         <button 
-          onClick={() => addToCart(product)}
+          onClick={() => addToCart(product)} disabled={product.stock <= 0}
           className="bg-gradient-to-r from-ferreDark to-[#1a1a1a] hover:from-ferreRed hover:to-[#991116] text-white p-3 rounded-xl shadow-lg hover:shadow-red-500/40 transition-all duration-300 transform active:scale-95 flex items-center gap-2">
           <ShoppingCart size={18} /> <span className="text-sm font-bold">Comprar</span>
         </button>
@@ -485,58 +474,6 @@ const Cotizar = () => {
   );
 };
 
-const TransactionResult = () => {
-  const [status, setStatus] = useState('Verificando pago...');
-  const location = useLocation();
-  const navigate = useNavigate();
-
-  useEffect(() => {
-    const verifyPayment = async () => {
-      const params = new URLSearchParams(location.search);
-      const id = params.get('id'); // ID de transacción de Wompi
-
-      if (!id) {
-        setStatus('No se encontró información de la transacción.');
-        return;
-      }
-
-      try {
-        // Consultar estado en Wompi (Sandbox)
-        const response = await axios.get(`${WOMPI_API_URL}/${id}`);
-        const data = response.data.data;
-        
-        if (data.status === 'APPROVED') {
-           const orderId = data.reference;
-           const userInfo = JSON.parse(localStorage.getItem('userInfo'));
-           
-           if(userInfo) {
-             const config = { headers: { Authorization: `Bearer ${userInfo.token}` } };
-             await API.put(`/orders/${orderId}/pay`, {}, config);
-             setStatus('¡Pago Exitoso! Tu orden ha sido procesada y la factura enviada a tu correo.');
-           } else {
-             setStatus('Pago aprobado, pero no se pudo verificar la sesión. Por favor contacta soporte.');
-           }
-        } else {
-           setStatus(`El pago no fue aprobado. Estado: ${data.status}`);
-        }
-      } catch (error) {
-        console.error(error);
-        setStatus('Error verificando el pago.');
-      }
-    };
-
-    verifyPayment();
-  }, [location]);
-
-  return (
-    <div className="container mx-auto px-6 py-20 text-center">
-      <h2 className="text-3xl font-bold mb-4">Resultado de la Transacción</h2>
-      <p className="text-xl text-gray-700 mb-8">{status}</p>
-      <Link to="/" className="bg-ferreRed text-white px-6 py-3 rounded-lg font-bold">Volver al Inicio</Link>
-    </div>
-  );
-};
-
 const Ofertas = ({ addToCart }) => {
   const [products, setProducts] = useState([]);
 
@@ -733,8 +670,18 @@ const UserProfile = ({ user, setUser }) => {
                         <p className="text-sm text-gray-500">{new Date(order.createdAt).toLocaleDateString()} - {new Date(order.createdAt).toLocaleTimeString()}</p>
                       </div>
                       <div className="flex items-center gap-3">
-                        <span className={`px-3 py-1 rounded-full text-xs font-bold flex items-center gap-1 ${order.isPaid ? 'bg-green-100 text-green-700' : 'bg-yellow-100 text-yellow-700'}`}>
-                          {order.isPaid ? <><CheckCircle size={14}/> Pagado</> : <><Clock size={14}/> Pendiente</>}
+                        <span className={`px-2 py-1 rounded-full text-xs font-bold flex items-center gap-1.5 ${
+                          order.paymentStatus === 'Pagado' ? 'bg-green-100 text-green-700' : 
+                          order.paymentStatus === 'Rechazado' ? 'bg-red-100 text-red-700' : 'bg-yellow-100 text-yellow-700'
+                        }`}>
+                          <Clock size={12}/> {order.paymentStatus}
+                        </span>
+                        <span className={`px-2 py-1 rounded-full text-xs font-bold flex items-center gap-1.5 ${
+                          order.deliveryStatus === 'Entregado' ? 'bg-blue-100 text-blue-700' : 
+                          order.deliveryStatus === 'En Tránsito' ? 'bg-purple-100 text-purple-700' : 
+                          order.deliveryStatus === 'Cancelado' ? 'bg-red-100 text-red-700' : 'bg-gray-100 text-gray-700'
+                        }`}>
+                          <Package size={12}/> {order.deliveryStatus}
                         </span>
                         <span className="font-bold text-lg text-ferreDark">${order.totalPrice.toLocaleString('es-CO')}</span>
                       </div>
@@ -760,7 +707,7 @@ const UserProfile = ({ user, setUser }) => {
 };
 
 const AdminPanel = ({ user }) => {
-  const [formData, setFormData] = useState({ name: '', description: '', price: '', category: '', subcategory: '', stock: '', imageUrl: '' });
+  const [formData, setFormData] = useState({ name: '', description: '', price: '', category: '', subcategory: '', stock: '', minStock: '', imageUrl: '' });
   const [companyData, setCompanyData] = useState({ name: '', nit: '', address: '', phone: '', email: '', logoUrl: '' });
   const [userFormData, setUserFormData] = useState({ name: '', email: '', isAdmin: false, address: '', phone: '', identification: '', password: '' });
   const [products, setProducts] = useState([]);
@@ -776,6 +723,7 @@ const AdminPanel = ({ user }) => {
   const [activeTab, setActiveTab] = useState('inventory'); // 'inventory', 'orders', 'quotes'
   const [inventorySearch, setInventorySearch] = useState('');
   const [inventoryCategory, setInventoryCategory] = useState('');
+  const [showOutOfStock, setShowOutOfStock] = useState(false);
   const [visibleCount, setVisibleCount] = useState(10);
 
   useEffect(() => {
@@ -789,7 +737,7 @@ const AdminPanel = ({ user }) => {
 
   useEffect(() => {
     setVisibleCount(10);
-  }, [inventorySearch, inventoryCategory]);
+  }, [inventorySearch, inventoryCategory, showOutOfStock]);
 
   const fetchProducts = async () => {
     try {
@@ -857,7 +805,7 @@ const AdminPanel = ({ user }) => {
         await API.post('/products', formData, config);
         alert('✅ Producto agregado correctamente');
       }
-      setFormData({ name: '', description: '', price: '', category: '', subcategory: '', stock: '', imageUrl: '' });
+      setFormData({ name: '', description: '', price: '', category: '', subcategory: '', stock: '', minStock: '', imageUrl: '' });
       fetchProducts();
     } catch (error) {
       alert('❌ Error al guardar producto: ' + (error.response?.data?.message || error.message));
@@ -926,6 +874,7 @@ const AdminPanel = ({ user }) => {
       category: product.category,
       subcategory: product.subcategory || '',
       stock: product.stock,
+      minStock: product.minStock || '',
       imageUrl: product.imageUrl
     });
     // Cargar subcategorías correspondientes
@@ -948,7 +897,7 @@ const AdminPanel = ({ user }) => {
 
   const cancelEdit = () => {
     setEditId(null);
-    setFormData({ name: '', description: '', price: '', category: '', subcategory: '', stock: '', imageUrl: '' });
+    setFormData({ name: '', description: '', price: '', category: '', subcategory: '', stock: '', minStock: '', imageUrl: '' });
   };
 
   const handleUserEdit = (userItem) => {
@@ -996,10 +945,39 @@ const AdminPanel = ({ user }) => {
     setUserFormData({ name: '', email: '', isAdmin: false, address: '', phone: '', identification: '', password: '' });
   };
 
+  const handleStatusChange = async (orderId, newStatus) => {
+    if (!window.confirm(`¿Estás seguro de cambiar el estado de entrega a "${newStatus}"?`)) return;
+
+    try {
+      const config = { headers: { Authorization: `Bearer ${user.token}` } };
+      await API.put(`/orders/${orderId}/status`, { deliveryStatus: newStatus }, config);
+      await fetchOrders(); // Recargar órdenes para reflejar el cambio
+      alert('¡Estado del pedido actualizado!');
+    } catch (error) {
+      console.error("Error actualizando estado:", error);
+      alert('No se pudo actualizar el estado del pedido.');
+    }
+  };
+
+  const handleOrderDelete = async (orderId) => {
+    if (window.confirm('⚠️ ¿Estás seguro de eliminar este pedido permanentemente?\n\nEsta acción borrará el pedido del historial del administrador y del cliente. No se puede deshacer.')) {
+      try {
+        const config = { headers: { Authorization: `Bearer ${user.token}` } };
+        await API.delete(`/orders/${orderId}`, config);
+        await fetchOrders(); // Recargar la lista
+        alert('✅ Pedido eliminado correctamente.');
+      } catch (error) {
+        console.error("Error eliminando pedido:", error);
+        alert('❌ Error al eliminar el pedido.');
+      }
+    }
+  };
+
   const filteredInventory = products.filter(product => {
     const matchesSearch = product.name.toLowerCase().includes(inventorySearch.toLowerCase());
     const matchesCategory = inventoryCategory ? product.category === inventoryCategory : true;
-    return matchesSearch && matchesCategory;
+    const matchesStock = showOutOfStock ? product.stock <= (product.minStock || 0) : true;
+    return matchesSearch && matchesCategory && matchesStock;
   });
 
   return (
@@ -1059,7 +1037,7 @@ const AdminPanel = ({ user }) => {
                       </select>
                     </div>
                   )}
-                  <div className="grid grid-cols-2 gap-4">
+                  <div className="grid grid-cols-3 gap-4">
                     <div>
                       <label className="block text-sm font-medium text-gray-700 mb-1">Precio</label>
                       <input type="number" className="w-full border border-gray-300 p-3 rounded-lg focus:ring-2 focus:ring-ferreRed outline-none shadow-sm" value={formData.price} onChange={e => setFormData({...formData, price: e.target.value})} required />
@@ -1067,6 +1045,10 @@ const AdminPanel = ({ user }) => {
                     <div>
                       <label className="block text-sm font-medium text-gray-700 mb-1">Stock</label>
                       <input type="number" className="w-full border border-gray-300 p-3 rounded-lg focus:ring-2 focus:ring-ferreRed outline-none shadow-sm" value={formData.stock} onChange={e => setFormData({...formData, stock: e.target.value})} required />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">Stock Mínimo</label>
+                      <input type="number" className="w-full border border-gray-300 p-3 rounded-lg focus:ring-2 focus:ring-ferreRed outline-none shadow-sm" value={formData.minStock} onChange={e => setFormData({...formData, minStock: e.target.value})} placeholder="0" />
                     </div>
                   </div>
                 </div>
@@ -1098,7 +1080,7 @@ const AdminPanel = ({ user }) => {
               {/* Lista de Productos */}
               <div className="mt-16">
                 <div className="flex flex-col md:flex-row justify-between items-end mb-6 border-b pb-2 gap-4">
-                  <h3 className="text-xl font-semibold text-gray-700">Inventario Actual ({products.length})</h3>
+                  <h3 className="text-xl font-semibold text-gray-700">Inventario Actual ({filteredInventory.length})</h3>
                   <div className="flex flex-col md:flex-row gap-4 w-full md:w-auto">
                     <div className="relative w-full md:w-64">
                       <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" size={18} />
@@ -1114,6 +1096,13 @@ const AdminPanel = ({ user }) => {
                       <option value="">Todas las Categorías</option>
                       {categories.map(cat => <option key={cat._id} value={cat.name}>{cat.name}</option>)}
                     </select>
+                    <button 
+                      onClick={() => setShowOutOfStock(!showOutOfStock)}
+                      className={`py-2 px-4 border rounded-lg font-medium text-sm transition-colors flex items-center gap-2 whitespace-nowrap ${showOutOfStock ? 'bg-red-50 border-red-200 text-red-700' : 'bg-white border-gray-300 text-gray-700 hover:bg-gray-50'}`}
+                    >
+                      {showOutOfStock ? <X size={16} /> : <Filter size={16} />}
+                      {showOutOfStock ? 'Ver Todos' : 'Ver Bajo Stock'}
+                    </button>
                   </div>
                 </div>
                 <div className="overflow-x-auto">
@@ -1139,7 +1128,10 @@ const AdminPanel = ({ user }) => {
                           </td>
                           <td className="p-4">{product.category} <br/><span className="text-xs text-gray-400">{product.subcategory}</span></td>
                           <td className="p-4 font-medium">${product.price.toLocaleString('es-CO')}</td>
-                          <td className="p-4">{product.stock}</td>
+                          <td className={`p-4 ${product.stock <= 0 ? 'text-red-600 font-bold' : product.stock <= (product.minStock || 0) ? 'text-orange-600 font-bold' : ''}`}>
+                            {product.stock}
+                            {product.stock <= (product.minStock || 0) && <span className="block text-xs text-red-500 font-bold">Reabastecer</span>}
+                          </td>
                           <td className="p-4 text-center">
                             <div className="flex justify-center gap-2">
                               <button onClick={() => handleEdit(product)} className="p-2 text-blue-600 hover:bg-blue-50 rounded-full transition-colors" title="Editar"><Edit size={18} /></button>
@@ -1178,7 +1170,36 @@ const AdminPanel = ({ user }) => {
                           <p className="text-sm text-gray-500">{new Date(order.createdAt).toLocaleDateString()} - {new Date(order.createdAt).toLocaleTimeString()}</p>
                           <p className="text-sm font-medium mt-1">Cliente: {order.user?.name || 'Usuario Eliminado'} ({order.user?.email})</p>
                         </div>
-                        <span className="bg-green-100 text-green-700 px-3 py-1 rounded-full text-sm font-bold">${order.totalPrice.toLocaleString('es-CO')}</span>
+                        <div className="text-right">
+                          <span className="bg-green-100 text-green-700 px-3 py-1 rounded-full text-sm font-bold">${order.totalPrice.toLocaleString('es-CO')}</span>
+                          <div className="flex items-center gap-2 mt-2 justify-end">
+                            <span title="Estado de Pago" className={`px-2 py-1 text-xs font-bold rounded-full flex items-center gap-1 ${
+                              order.paymentStatus === 'Pagado' ? 'bg-green-100 text-green-700' : 
+                              order.paymentStatus === 'Rechazado' ? 'bg-red-100 text-red-700' : 'bg-yellow-100 text-yellow-700'
+                            }`}>
+                              {order.paymentStatus === 'Pagado' ? <CheckCircle size={12}/> : <Clock size={12}/>}
+                              {order.paymentStatus || 'Pendiente'}
+                            </span>
+                            <select 
+                              value={order.deliveryStatus || 'Pendiente'} 
+                              onChange={(e) => handleStatusChange(order._id, e.target.value)}
+                              className={`text-xs p-1 border rounded-md shadow-sm focus:ring-ferreRed focus:border-ferreRed font-bold cursor-pointer ${
+                                order.deliveryStatus === 'Entregado' ? 'text-blue-700 bg-blue-50 border-blue-200' : 
+                                order.deliveryStatus === 'En Tránsito' ? 'text-purple-700 bg-purple-50 border-purple-200' : 
+                                order.deliveryStatus === 'Cancelado' ? 'text-red-700 bg-red-50 border-red-200' : 'text-gray-700 bg-white'
+                              }`}
+                              onClick={(e) => e.stopPropagation()} // Evita que el click se propague
+                            >
+                              <option value="Pendiente">Pendiente</option>
+                              <option value="En Tránsito">En Tránsito</option>
+                              <option value="Entregado">Entregado</option>
+                              <option value="Cancelado">Cancelado</option>
+                            </select>
+                            <button onClick={() => handleOrderDelete(order._id)} className="p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-md transition-all" title="Eliminar Pedido Permanentemente">
+                              <Trash2 size={18} />
+                            </button>
+                          </div>
+                        </div>
                       </div>
                       <div className="mt-3 border-t pt-2">
                         <p className="text-xs font-bold text-gray-500 uppercase mb-1">Productos:</p>
@@ -1663,63 +1684,48 @@ function App() {
   const [searchTerm, setSearchTerm] = useState('');
 
   const addToCart = (product) => {
-    setCart([...cart, product]);
-  };
-
-  const removeFromCart = (index) => {
-    const newCart = [...cart];
-    newCart.splice(index, 1);
-    setCart(newCart);
-  };
-
-  const handleCheckout = async () => {
-    if (!user) {
-      alert('Por favor inicia sesión para comprar.');
+    if (product.stock <= 0) {
+      alert('Este producto está agotado.');
       return;
     }
-    
-    const totalPrice = cart.reduce((acc, item) => acc + item.price, 0);
+    setCart(prevCart => {
+      const exist = prevCart.find(item => item._id === product._id);
+      if (exist) {
+        // Si el producto ya está, incrementa la cantidad si no excede el stock
+        const newQty = exist.qty + 1;
+        if (newQty > product.stock) {
+          alert(`No puedes agregar más de ${product.stock} unidades de este producto.`);
+          return prevCart;
+        }
+        return prevCart.map(item =>
+          item._id === product._id ? { ...item, qty: newQty } : item
+        );
+      } else {
+        // Si es un producto nuevo, lo agrega con cantidad 1
+        return [...prevCart, { ...product, qty: 1 }];
+      }
+    });
+  };
 
-    // Validación de monto mínimo para Wompi (aprox 1500 COP)
-    if (totalPrice < 1500) {
-      alert('El valor mínimo de compra para pagos en línea es de $1.500 COP.');
-      return;
-    }
+  const removeFromCart = (productId) => {
+    setCart(prevCart => prevCart.filter(item => item._id !== productId));
+  };
 
-    const orderItems = cart.map(item => ({
-      name: item.name,
-      qty: 1,
-      image: item.imageUrl,
-      price: item.price,
-      product: item._id
-    }));
-
-    try {
-      const config = { headers: { Authorization: `Bearer ${user.token}` } };
-      const { data: createdOrder } = await API.post('/orders', { orderItems, totalPrice }, config);
-      
-      // Cargar Wompi y abrir Widget
-      await loadWompiScript();
-      
-      const checkout = new window.WidgetCheckout({
-        currency: 'COP',
-        amountInCents: Math.round(totalPrice * 100), // Wompi requiere centavos en entero
-        reference: createdOrder._id,
-        // IMPORTANTE: Reemplaza esta llave por tu propia llave pública de pruebas de Wompi (Dashboard > Desarrolladores)
-        publicKey: import.meta.env.VITE_WOMPI_PUBLIC_KEY || 'pub_test_Q5yDA9xoKdePzhSGeVe9HAez74uwfy52', 
-        redirectUrl: `${window.location.origin}/transaction-result`, // URL de retorno dinámica
-      });
-      
-      checkout.open((result) => {
-        console.log('Transacción:', result.transaction);
-      });
-      
-      setCart([]); // Vaciar carrito
-    } catch (error) {
-      console.error(error);
-      // Mostrar mensaje específico del backend (ej: Stock insuficiente)
-      alert(error.response?.data?.message || 'Error al iniciar el proceso de pago.');
-    }
+  const updateCartQty = (productId, qty) => {
+    const numQty = parseInt(qty, 10);
+    setCart(prevCart =>
+      prevCart.map(item => {
+        if (item._id === productId) {
+          if (numQty > 0 && numQty <= item.stock) {
+            return { ...item, qty: numQty };
+          } else if (numQty > item.stock) {
+            alert(`Solo hay ${item.stock} unidades disponibles.`);
+            return { ...item, qty: item.stock };
+          }
+        }
+        return item;
+      }).filter(item => item.qty > 0) // Elimina si la cantidad es 0 o menos
+    );
   };
 
   const logout = () => {
@@ -1731,7 +1737,7 @@ function App() {
   return (
     <Router>
       <div className="min-h-screen bg-ferreLight font-sans text-gray-800 flex flex-col">
-        <Navbar user={user} cartCount={cart.length} logout={logout} searchTerm={searchTerm} setSearchTerm={setSearchTerm} />
+        <Navbar user={user} cartCount={cart.reduce((acc, item) => acc + (item.qty || 0), 0)} logout={logout} searchTerm={searchTerm} setSearchTerm={setSearchTerm} />
         <div className="flex-grow">
           <Routes>
             <Route path="/" element={<Home addToCart={addToCart} searchTerm={searchTerm} />} />
@@ -1740,7 +1746,6 @@ function App() {
             <Route path="/cotizar" element={<Cotizar />} />
             <Route path="/ofertas" element={<Ofertas addToCart={addToCart} />} />
             <Route path="/contacto" element={<Contacto />} />
-            <Route path="/transaction-result" element={<TransactionResult />} />
             <Route path="/profile" element={user ? <UserProfile user={user} setUser={setUser} /> : <Navigate to="/login" />} />
             <Route path="/login" element={user ? <Navigate to="/" /> : <Login setUser={setUser} />} />
             <Route path="/register" element={user ? <Navigate to="/" /> : <Register setUser={setUser} />} />
@@ -1748,60 +1753,7 @@ function App() {
             <Route path="/forgot-password" element={<ForgotPassword />} />
             <Route path="/reset-password/:token" element={<ResetPassword />} />
             <Route path="/admin" element={user && user.isAdmin ? <AdminPanel user={user} /> : <Navigate to="/" />} />
-            <Route path="/cart" element={
-              <div className="container mx-auto p-4 md:p-6 max-w-5xl">
-                <h2 className="text-3xl font-bold text-gray-800 mb-8 flex items-center gap-3">
-                  <ShoppingCart className="text-ferreRed" /> Tu Carrito de Compras
-                </h2>
-                {cart.length === 0 ? <p>El carrito está vacío.</p> : (
-                  <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-                    {/* Lista de Items */}
-                    <div className="lg:col-span-2 space-y-4">
-                      {cart.map((item, index) => (
-                        <div key={index} className="bg-white p-4 rounded-xl shadow-sm border border-gray-100 flex flex-col sm:flex-row items-start sm:items-center gap-4">
-                          <div className="w-20 h-20 bg-gray-50 rounded-lg flex items-center justify-center overflow-hidden flex-shrink-0">
-                            <img src={`${SERVER_URL}${item.imageUrl}`} alt={item.name} className="h-full w-full object-contain" onError={(e) => e.target.src = 'https://via.placeholder.com/100'} />
-                          </div>
-                          <div className="flex-grow">
-                            <h4 className="font-bold text-gray-800">{item.name}</h4>
-                            <p className="text-sm text-gray-500">{item.category}</p>
-                          </div>
-                          <div className="w-full sm:w-auto flex justify-between items-center sm:block sm:text-right mt-2 sm:mt-0">
-                            <p className="font-bold text-lg">${item.price.toLocaleString('es-CO')}</p>
-                            <button onClick={() => removeFromCart(index)} className="text-red-500 text-sm hover:underline flex items-center gap-1 justify-end mt-1">
-                              <Trash2 size={14} /> Eliminar
-                            </button>
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                    
-                    {/* Resumen de Pago */}
-                    <div className="bg-white p-6 rounded-xl shadow-lg h-fit border border-gray-100">
-                      <h3 className="text-xl font-bold mb-4 text-gray-800">Resumen del Pedido</h3>
-                      <div className="space-y-2 mb-6 text-gray-600">
-                        <div className="flex justify-between">
-                          <span>Subtotal</span>
-                          <span>${cart.reduce((acc, item) => acc + item.price, 0).toLocaleString('es-CO')}</span>
-                        </div>
-                        <div className="flex justify-between text-green-600">
-                          <span>Envío</span>
-                          <span>Gratis</span>
-                        </div>
-                        <div className="border-t pt-2 mt-2 flex justify-between font-bold text-xl text-gray-900">
-                          <span>Total</span>
-                          <span>${cart.reduce((acc, item) => acc + item.price, 0).toLocaleString('es-CO')}</span>
-                        </div>
-                      </div>
-                      <button onClick={handleCheckout} className="w-full bg-gradient-to-r from-ferreRed to-[#991116] text-white py-4 rounded-lg font-bold hover:shadow-red-600/40 shadow-lg transition-all transform active:scale-95 flex justify-center items-center gap-2">
-                        <CreditCard size={20} /> Proceder al Pago
-                      </button>
-                      <p className="text-xs text-center text-gray-400 mt-4">Transacciones seguras y encriptadas.</p>
-                    </div>
-                  </div>
-                )}
-              </div>
-            } />
+            <Route path="/cart" element={<CartPage cart={cart} user={user} removeFromCart={removeFromCart} setCart={setCart} updateCartQty={updateCartQty} />} />
           </Routes>
         </div>
         <footer className="bg-gray-800 text-white py-10 mt-auto">

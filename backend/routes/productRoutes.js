@@ -11,10 +11,10 @@ router.get('/', async (req, res) => {
 
 // Crear producto (Solo Admin)
 router.post('/', protect, admin, async (req, res) => {
-  const { name, description, price, category, subcategory, stock, imageUrl } = req.body;
+  const { name, description, price, category, subcategory, stock, minStock, imageUrl } = req.body;
 
   const product = new Product({
-    name, description, price, category, subcategory, stock, imageUrl
+    name, description, price, category, subcategory, stock, minStock, imageUrl
   });
 
   const createdProduct = await product.save();
@@ -23,7 +23,7 @@ router.post('/', protect, admin, async (req, res) => {
 
 // Actualizar producto (Solo Admin)
 router.put('/:id', protect, admin, async (req, res) => {
-  const { name, description, price, category, subcategory, stock, imageUrl } = req.body;
+  const { name, description, price, category, subcategory, stock, minStock, imageUrl } = req.body;
   const product = await Product.findById(req.params.id);
 
   if (product) {
@@ -32,7 +32,8 @@ router.put('/:id', protect, admin, async (req, res) => {
     product.price = price || product.price;
     product.category = category || product.category;
     product.subcategory = subcategory || product.subcategory;
-    product.stock = stock || product.stock;
+    product.stock = stock !== undefined ? stock : product.stock;
+    product.minStock = minStock !== undefined ? minStock : product.minStock;
     product.imageUrl = imageUrl || product.imageUrl;
 
     const updatedProduct = await product.save();

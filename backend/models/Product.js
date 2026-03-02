@@ -7,6 +7,7 @@ const productSchema = new mongoose.Schema({
   category: { type: String, required: true },
   subcategory: { type: String },
   stock: { type: Number, required: true, default: 0 },
+  minStock: { type: Number, default: 0 },
   imageUrl: { type: String, required: true },
 }, { timestamps: true });
 
